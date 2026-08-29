@@ -1,0 +1,319 @@
+---
+title: "CS5801 Coursework Supporting analysis Template Proforma"
+author: "STUDENT_ID"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: default
+version: 1
+---
+
+# 0. Instructions 
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(car)
+library(MASS)
+
+
+
+
+```
+
+# 1. Organise and clean the data
+
+## 1.1 Subset the data into the specific dataset allocated
+ 
+```{r}
+# Student ID and offset
+
+SID <- STUDENT_ID
+SIDoffset <- (SID %% 50) + 1
+SIDoffset
+
+# Load dataset
+
+load("carbon-footprint.Rda")
+ls()
+
+# Subset allocated observations
+
+Author_STUDENT_ID_mydf_Support <- df[seq(from = SIDoffset,
+to = nrow(df),
+by = 50), ]
+
+# Initial checks
+
+dim(Author_STUDENT_ID_mydf_Support)
+head(Author_STUDENT_ID_mydf_Support)
+tail(Author_STUDENT_ID_mydf_Support)
+str(Author_STUDENT_ID_mydf_Support)
+summary(Author_STUDENT_ID_mydf_Support)
+
+# Save allocated subset
+
+write.csv(Author_STUDENT_ID_mydf_Support,
+"Author_STUDENT_ID_mydf_Support.csv",
+row.names = FALSE)
+
+```
+
+
+## 1.2 Data quality plan
+
+``` {r}
+str(Author_STUDENT_ID_mydf_Support)
+summary(Author_STUDENT_ID_mydf_Support)
+colSums(is.na(Author_STUDENT_ID_mydf_Support))
+
+if ("home_type" %in% names(Author_STUDENT_ID_mydf_Support))
+table(Author_STUDENT_ID_mydf_Support$home_type)
+
+if ("diet_type" %in% names(Author_STUDENT_ID_mydf_Support))
+table(Author_STUDENT_ID_mydf_Support$diet_type)
+
+if ("uses_public_transport" %in% names(Author_STUDENT_ID_mydf_Support))
+table(Author_STUDENT_ID_mydf_Support$uses_public_transport)
+
+if ("recycles_regularly" %in% names(Author_STUDENT_ID_mydf_Support))
+table(Author_STUDENT_ID_mydf_Support$recycles_regularly)
+
+
+
+
+```
+
+
+
+## 1.3 Data quality analysis findings
+
+
+```{r}
+# Missing income
+
+if ("income" %in% names(Author_STUDENT_ID_mydf_Support)) {
+sum(is.na(Author_STUDENT_ID_mydf_Support$income))
+summary(Author_STUDENT_ID_mydf_Support$income)
+}
+
+# Duplicate recycling variables
+
+if (all(c("recycles_regularly","recycles_regularly_question")
+%in% names(Author_STUDENT_ID_mydf_Support))) {
+table(Author_STUDENT_ID_mydf_Support$recycles_regularly)
+table(Author_STUDENT_ID_mydf_Support$recycles_regularly_question)
+with(Author_STUDENT_ID_mydf_Support,
+table(recycles_regularly, recycles_regularly_question))
+}
+
+# Range check for annual_energy_consumption
+
+if ("annual_energy_consumption" %in% names(Author_STUDENT_ID_mydf_Support)) {
+summary(Author_STUDENT_ID_mydf_Support$annual_energy_consumption)
+Author_STUDENT_ID_mydf_Support[
+Author_STUDENT_ID_mydf_Support$annual_energy_consumption < 0, ]
+}
+
+
+
+
+
+```
+ 
+## 1.4 Data cleaning  
+ 
+
+```{r}
+# Create cleaned dataset used in submission
+
+mydf <- Author_STUDENT_ID_mydf_Support
+
+# Issue 1: Mean imputation for income (used in submission)
+
+if ("income" %in% names(mydf)) {
+income_mean <- mean(mydf$income, na.rm = TRUE)
+mydf$income[is.na(mydf$income)] <- income_mean
+summary(mydf$income)
+}
+
+# Alternative: Median imputation
+
+mydf_income_median <- Author_STUDENT_ID_mydf_Support
+if ("income" %in% names(mydf_income_median)) {
+income_median <- median(mydf_income_median$income, na.rm = TRUE)
+mydf_income_median$income[is.na(mydf_income_median$income)] <- income_median
+summary(mydf_income_median$income)
+}
+
+# Issue 2: Drop duplicate recycling column (used in submission)
+
+if ("recycles_regularly_question" %in% names(mydf)) {
+mydf$recycles_regularly_question <- NULL
+}
+names(mydf)
+
+# Alternative: Re-code Yes/No recycling variable
+
+mydf_recycle_recode <- Author_STUDENT_ID_mydf_Support
+if ("recycles_regularly_question" %in% names(mydf_recycle_recode)) {
+mydf_recycle_recode$recycle_from_text <-
+mydf_recycle_recode$recycles_regularly_question
+mydf_recycle_recode$recycle_from_text[
+mydf_recycle_recode$recycle_from_text == "Yes"] <- 1
+mydf_recycle_recode$recycle_from_text[
+mydf_recycle_recode$recycle_from_text == "No"] <- 0
+mydf_recycle_recode$recycle_from_text <-
+as.numeric(mydf_recycle_recode$recycle_from_text)
+
+with(mydf_recycle_recode,
+table(recycles_regularly, recycle_from_text))
+}
+
+# Issue 3: Negative annual_energy_consumption -> NA then mean imputation
+
+if ("annual_energy_consumption" %in% names(mydf)) {
+mydf$annual_energy_consumption[
+mydf$annual_energy_consumption < 0] <- NA
+
+energy_mean <- mean(mydf$annual_energy_consumption, na.rm = TRUE)
+mydf$annual_energy_consumption[
+is.na(mydf$annual_energy_consumption)] <- energy_mean
+
+summary(mydf$annual_energy_consumption)
+}
+# Alternative: Remove observations with invalid annual_energy_consumption values
+
+mydf_energy_removed <- Author_STUDENT_ID_mydf_Support
+
+mydf_energy_removed <- mydf_energy_removed[
+  mydf_energy_removed$annual_energy_consumption >= 0 |
+    is.na(mydf_energy_removed$annual_energy_consumption),
+]
+
+# Check dimensions after removal
+dim(mydf_energy_removed)
+
+# Check remaining range
+summary(mydf_energy_removed$annual_energy_consumption)
+
+
+# Save final cleaned dataset
+
+write.csv(mydf, "Author_STUDENT_ID_mydf.csv", row.names = FALSE)
+
+
+```
+
+
+# 2. Exploratory Data Analysis (EDA)
+
+
+  
+```{r}
+str(mydf)
+summary(mydf)
+
+table(mydf$home_type)
+table(mydf$diet_type)
+table(mydf$uses_public_transport)
+table(mydf$recycles_regularly)
+
+prop.table(table(mydf$recycles_regularly))
+
+hist(mydf$carbon_footprint)
+hist(mydf$annual_energy_consumption)
+boxplot(mydf$income)
+
+boxplot(carbon_footprint ~ home_type, data = mydf)
+boxplot(carbon_footprint ~ diet_type, data = mydf)
+
+plot(mydf$annual_energy_consumption, mydf$carbon_footprint)
+
+
+
+```
+
+
+# 3. Modelling
+
+
+
+```{r}
+start_model <- lm(carbon_footprint ~ home_type +
+annual_energy_consumption +
+household_size +
+income,
+data = mydf)
+summary(start_model)
+
+model_cf_1 <- lm(carbon_footprint ~ home_type +
+annual_energy_consumption +
+household_size,
+data = mydf)
+summary(model_cf_1)
+
+model_cf_2 <- lm(carbon_footprint ~ home_type +
+annual_energy_consumption,
+data = mydf)
+summary(model_cf_2)
+
+final_model <- lm(carbon_footprint ~ home_type +
+annual_energy_consumption,
+data = mydf)
+summary(final_model)
+
+plot(final_model)
+
+coef(final_model)
+head(final_model$fitted.values)
+head(final_model$residuals)
+
+anova(start_model, model_cf_2)
+
+
+
+
+```
+
+
+# 4. Modelling another dependent variable
+
+
+```{r}
+recycle_model <- glm(recycles_regularly ~ home_type +
+annual_energy_consumption,
+data = mydf,
+family = binomial)
+summary(recycle_model)
+
+plot(recycle_model)
+
+coef(recycle_model)
+summary(recycle_model$fitted.values)
+
+exp(coef(recycle_model))
+
+
+
+```
+
+# References  
+Agresti, A. (2019) An introduction to categorical data analysis. 3rd edn. Hoboken, NJ: Wiley.
+
+Brunel University London (2025) CS5801: Quantitative Data Analysis – Lecture notes and laboratory materials. Brunel University London.
+
+Brunel University London (2025) CS5702: Modern Data – Lecture notes and laboratory materials. Brunel University London.
+
+James, G., Witten, D., Hastie, T. and Tibshirani, R. (2021) An introduction to statistical learning: With applications in R. 2nd edn. New York: Springer.
+
+MarinStatsLectures (n.d.) MarinStatsLectures – R Programming & Statistics YouTube channel. YouTube. Available at: https://www.youtube.com/c/MarinStatsLectures-RProgrammingStatistics
+ 
+
+R Core Team (2024) R: A language and environment for statistical computing. Vienna: R Foundation for Statistical Computing.
+
+
+R Documentation (n.d.) The base package. Available at: https://stat.ethz.ch/R-manual/R-devel/library/base/html/
+ 
+
+Wickham, H. (2016) ggplot2: Elegant graphics for data analysis. New York: Springer.
+

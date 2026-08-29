@@ -1,0 +1,263 @@
+---
+title: "CS5801 Coursework SUBMISSION Template Proforma"
+author: "STUDENT_ID"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: default
+version: 1
+---
+
+# 0. Instructions 
+
+# 1. Organise and clean the data
+
+## 1.1 Subset the data into the specific dataset allocated
+The data set contains survey responses on household characteristics, energy use, environmental behavior, and carbon footprint.As instructed by the assessment brief, I created a unique subset of the full data set using my student identification number so that the analysis is based on the allocated observations.
+My student ID was assigned to the variable SID and used to calculate an offset value. For my ID, this produced an offset of 4, which defines the starting position for subsetting. From this point, every 50th observation was selected from the full data set. This approach ensures that the subset is selected systematically and productively, in accordance with the allocation rules, and that observations are evenly distributed across the data set rather than concentrated in one section.
+The resulting subset was stored in a new data frame named Author_STUDENT_ID_mydf and used for all subsequent data quality assessment, exploratory analysis, and modelling. The subset was also saved as a CSV file to ensure consistent use across the submission and supporting files.
+
+
+```{r}
+# Only change the value for SID 
+# Assign your student id into the variable SID, for example:
+SID <- STUDENT_ID                 # This is an example, replace 2101234 with your actual ID
+SIDoffset <- (SID %% 50) + 1    # Your SID mod 50 + 1
+paste(SIDoffset) 
+SIDoffset
+
+load("carbon-footprint.Rda")
+# Now subset the survey data set
+# Pick every 50th observation starting from your offset
+# Put into your data frame named mydf (you can rename it)
+Author_STUDENT_ID_mydf <- df[seq(from=SIDoffset,to=nrow(df),by=50),]
+
+# get this data in csv 
+write.csv(Author_STUDENT_ID_mydf,
+          "Author_STUDENT_ID_mydf.csv",
+          row.names = FALSE)
+
+
+```
+
+
+## 1.2 Data quality plan
+To check the quality of the dataset, I looked each variable physically for common data quality issues, including missing values, duplicate variables, and invalid entries. I began by checking for missing values across all columns using functions that count NA entries. This helped identify any variables with incomplete data that could affect analysis. Next, I looked for duplicate variables by comparing pairs of columns that appeared to measure similar things, using cross-tabulations to confirm repetition.Finally, I checked for out-of-range values, such as negative numbers where only positive values are logical. This involved filtering the data to identify any entries that violated expected ranges. Each identified issue has its supporting code in the support file.This structured approach ensured a comprehensive evaluation of data quality, allowing for targeted cleaning steps to improve the dataset before analysis.
+
+
+
+
+## 1.3 Data quality findings
+
+### Issue 1
+Missing income values
+One data quality issue identified in the data set is the presence of missing values in the income variable. The supporting code shows that 22 observations have missing income values. Income is an important variable because it may influence household energy consumption and carbon footprint. Missing values reduce the completeness of the data set and can lead to biased analysis if not addressed. In particular, regression models may exclude observations with missing values automatically, reducing sample size and potentially distorting estimated relationships between income and carbon footprint.
+
+```{r}
+sum(is.na(Author_STUDENT_ID_mydf$income))  
+
+
+
+
+```
+
+
+### Issue 2
+Duplicate variables representing recycling behavior
+The data set contains two variables that represent recycling behavior: one coded as a binary variable (0/1) and another recorded as a text-based variable (Yes/No). The cross-tabulation produced by the supporting code confirms that both variables describe the same concept. This duplication introduces redundancy and creates the risk of inconsistency during analysis, especially when selecting variables for modelling. Using multiple variables to represent the same behavior may lead to confusion and misinterpretation of results if not handled consistently.
+```{r}
+with(Author_STUDENT_ID_mydf, table(recycles_regularly, recycles_regularly_question))
+
+
+
+
+
+```
+### Issue 3
+Invalid values in annual energy consumption
+A further data quality issue is the presence of negative values in the annual_energy_consumption variable. As annual energy consumption is a physical quantity, negative values are not logically meaningful and represent a clear range violation. The supporting code identifies observations where this issue occurs. Retaining invalid values can distort summary statistics and bias model estimates, particularly when energy consumption is used as an explanatory variable. Correcting this issue is necessary to ensure that the data set accurately represents real-world household energy use.
+
+```{r}
+Author_STUDENT_ID_mydf[ Author_STUDENT_ID_mydf$annual_energy_consumption < 0 , ]
+
+ 
+ 
+```
+ 
+## 1.4 Data cleaning  
+
+### Addressing Issue 1
+Missing income values
+Missing values in the income variable were addressed using mean imputation, where missing entries were replaced with the mean of the observed income values. This approach retains all observations and allows income to be used consistently in analysis and modelling. An alternative approach of median imputation was considered; however, mean imputation was selected to maintain consistency with other numerical imputation steps.
+
+
+```{r}
+Author_STUDENT_ID_mydf$income[is.na(Author_STUDENT_ID_mydf$income)] <- mean(Author_STUDENT_ID_mydf$income, na.rm = TRUE)
+
+
+```
+
+
+### Addressing Issue 2
+Duplicate variables for recycling behaviour
+Two variables represented recycling behaviour, one binary and one text-based. To remove redundancy and ensure consistency, the text-based variable was removed and the binary variable was retained. This provides a single variable for analysis and modelling. An alternative approach would have been to recode and merge both variables, but retaining one variable offered a simpler solution.
+
+
+```{r}
+Author_STUDENT_ID_mydf$recycles_regularly_question <- NULL
+
+
+
+```
+
+
+### Addressing Issue 3
+Invalid annual energy consumption values
+Negative values in annual energy consumption were treated as invalid by converting them to missing values and replacing them using mean imputation. This ensured that invalid values did not influence results while retaining the dataset. An alternative approach of removing affected observations was considered but not chosen, as it would have reduced the sample size.
+
+```{r}
+Author_STUDENT_ID_mydf$annual_energy_consumption[Author_STUDENT_ID_mydf$annual_energy_consumption < 0] <- NA
+Author_STUDENT_ID_mydf$annual_energy_consumption[is.na(Author_STUDENT_ID_mydf$annual_energy_consumption)] <-
+  mean(Author_STUDENT_ID_mydf$annual_energy_consumption, na.rm = TRUE)
+
+
+```
+
+# 2. Exploratory Data Analysis (EDA)
+
+## Approach to exploring the dataset
+Before conducting formal modelling, I explored the dataset using simple numerical summaries and graphical methods to understand its structure and key patterns. Particular attention was given to the dependent variable, carbon_footprint, as understanding its distribution and variability is essential for interpretation and model selection. The exploratory analysis examined the spread, shape, and variation of carbon footprint values and identified differences across household characteristics. This ensured that observed patterns rather than assumptions guided modelling decisions.
+
+### Element 1
+Numerical summary of carbon footprint
+The numerical summary provides key descriptive measures, including the minimum, maximum, median, and quartiles of carbon footprint. This is informative because it shows the overall range of carbon footprints and the typical level across households. The spread between quartiles highlights variability in the data, which is essential for assessing whether the carbon footprint differs meaningfully between households and whether it can be modelled as a continuous outcome.
+
+
+```{r}
+summary(Author_STUDENT_ID_mydf$carbon_footprint)
+
+
+```
+
+### Element 2
+Histogram of carbon footprint
+The histogram displays the distribution of carbon footprint values across the dataset. It is helpful because it reveals the overall shape of the distribution, including any skewness and the presence of extreme values. Observing this distribution helps assess whether a small number of observations may disproportionately influence results.
+
+
+
+```{r}
+hist(Author_STUDENT_ID_mydf$carbon_footprint)
+
+```
+
+### Element 3
+Boxplot of carbon footprint by home type
+The boxplot compares carbon footprint across different home types. It is informative because it highlights differences in central tendency and spread between categories. These visible differences suggest that home type may be associated with carbon footprint, justifying its inclusion as an explanatory variable in subsequent modelling.
+
+
+```{r}
+boxplot(carbon_footprint ~ home_type, data = Author_STUDENT_ID_mydf)
+
+```
+
+
+# 3. Modelling
+
+## 3.1 Explain your analysis
+
+The aim of this analysis was to model variation in the continuous response variable carbon_footprint using relevant household characteristics contained in the dataset. A linear regression approach was used because carbon_footprint is numerical and the objective was to examine how multiple explanatory variables jointly relate to differences in emissions across households. Linear modelling allows the direction and magnitude of these relationships to be estimated in a clear and interpretable way, which is appropriate for the structure of the data and the analytical approach used in this module.
+The selection of explanatory variables was guided directly by the exploratory analysis. The numerical summary and histogram of carbon_footprint showed substantial variation across households, suggesting that multiple factors may contribute to observed differences. The boxplot comparing carbon_footprint across home_type revealed visible differences between categories, indicating that housing type may be associated with emission levels. As a result, home_type was included as a categorical explanatory variable.
+Annual_energy_consumption was also selected because energy use is directly linked to household emissions and showed a clear positive association with carbon footprint in the exploratory analysis. Household_size and income were initially considered because they reflect household scale and economic capacity, both of which may influence consumption patterns and emissions. These variables were therefore included in the starting model to assess their contribution.
+Model selection followed a structured simplification approach. I began with a starting model that included all variables identified as potentially relevant from the exploratory analysis. This model was then compared with simpler alternatives by removing variables that did not meaningfully improve the explanation of carbon_footprint. This ensured a balance between explanatory power and interpretability while avoiding unnecessary complexity.
+A limitation identified during modelling was that the distribution of carbon_footprint was not perfectly symmetric, and variability differed across some home types. This suggests that the linear model may not capture all sources of variation. Rather than over-complicating the model, this was addressed by focusing on predictors that showed clear and interpreted patterns in the exploratory analysis and acknowledging that the model provides a simplified representation of the relationships present. Despite these limitations, the final model offers a reasonable, data-driven summary of the main factors associated with household carbon footprint.
+
+## 3.2 Provide a model for carbon_footprint.
+The starting model included all explanatory variables identified during the exploratory analysis. The proposed model retains home_type and annual_energy_consumption, as these variables showed the most transparent and most interpretable relationships with carbon_footprint. Removing household_size and income did not substantially reduce explanatory ability and improved degree of interpretation. Diagnostic plots indicated that the proposed model provides a reasonable fit given the variability in the data.
+The model shows that each unit increase in annual energy consumption increases carbon footprint by approximately 1.29 units, holding home type constant.
+### Initial Model
+
+```{r}
+start_model <- lm(carbon_footprint ~ home_type +
+                  annual_energy_consumption +
+                  household_size + income, data = Author_STUDENT_ID_mydf)
+
+
+summary(start_model)
+```
+
+### Proposed model
+
+```{r}
+final_model <- lm(carbon_footprint ~ home_type +
+                  annual_energy_consumption, data = Author_STUDENT_ID_mydf)
+summary(final_model)
+```
+
+### Proposed model diagnostics
+```{r}
+plot(final_model)
+
+
+```
+
+### Proposed model interpretation
+
+```{r} 
+summary(final_model)
+
+
+
+
+```
+ 
+
+
+
+# 4. Model the likelihood of being a household that regularly recycles.
+This analysis aimed to model whether a household regularly recycles using the binary response variable recycles_regularly. Because the outcome variable has two possible values, a logistic regression model was used. This method is appropriate for binary outcomes and allows the probability of an event occurring to be expressed as a function of explanatory variables. Logistic regression also enables interpretation of how household characteristics influence the likelihood of regularly recycling, which aligns with the objectives of this analysis.
+The selection of explanatory variables was guided by exploratory data analysis and the dataset's structure. Home_type was included because differences observed across housing categories suggested that household structure may influence recycling behaviour. Housing type may reflect access to recycling facilities, storage space for waste separation, or differences in household organisation. Annual_energy_consumption was also included, as it represents household resource use and was strongly associated with environmental impact in earlier analysis. This variable was considered a valuable proxy for broader ecological behaviour, which may also be related to recycling practices. These variables were selected to ensure the model remained interpretable while capturing meaningful variation in recycling behaviour.
+The modelling process began with a model that included the key explanatory variables identified as relevant in the exploratory analysis. From this starting point, a simplified model was adopted that retained predictors showing more transparent and more consistent relationships with the binary outcome. This model selection approach prioritised interpretability and clarity over unnecessary complexity. Additional predictors were considered but did not substantially improve the explanation of recycling behaviour, making the simpler model more suitable for reporting and interpretation.
+Several limitations were identified during the modelling process. Some categories within home_type contained relatively few observations, which can reduce the stability of estimated effects in a logistic regression model. In addition, not all predictors showed strong or statistically significant relationships with recycling behavior, limiting the model’s overall explanatory strength. These issues were addressed by focusing interpretation on the most consistent and meaningful effects and avoiding over-interpretation of weaker predictors. It is also acknowledged that strong model fit may not always be achievable given the nature of survey data, which is recognized in the assessment guidance.
+The proposed model suggests that annual_energy_consumption is significantly associated with the likelihood of regularly recycling, indicating that patterns of household resource use are linked to recycling behavior. Households with different home types also show variation in recycling probability, suggesting that housing characteristics play a role, although these effects are less consistent than those associated with energy use. Overall, the model provides a concise and interpretable summary of how household characteristics and energy consumption relate to the likelihood of regularly recycling. While it does not capture all sources of variation in recycling behavior, it aligns with patterns identified in the exploratory analysis. It offers a reasonable representation of the main relationships present in the data.
+
+
+### Proposed Model
+```{r}
+recycle_model <- glm(recycles_regularly ~ home_type +
+                     annual_energy_consumption,
+                     data = Author_STUDENT_ID_mydf,
+                     family = binomial)
+summary(recycle_model)
+
+```
+
+### Model intepretation
+```{r}
+coef(recycle_model)
+View(Author_STUDENT_ID_mydf)
+
+
+
+```
+
+# References  
+Agresti, A. (2019) An introduction to categorical data analysis. 3rd edn. Hoboken, NJ: Wiley.
+
+Brunel University London (2025) CS5801: Quantitative Data Analysis – Lecture notes and laboratory materials. Brunel University London.
+
+Brunel University London (2025) CS5702: Modern Data – Lecture notes and laboratory materials. Brunel University London.
+
+James, G., Witten, D., Hastie, T. and Tibshirani, R. (2021) An introduction to statistical learning: With applications in R. 2nd edn. New York: Springer.
+
+MarinStatsLectures (n.d.) MarinStatsLectures – R Programming & Statistics YouTube channel. YouTube. Available at: https://www.youtube.com/c/MarinStatsLectures-RProgrammingStatistics
+ 
+
+R Core Team (2024) R: A language and environment for statistical computing. Vienna: R Foundation for Statistical Computing.
+
+
+R Documentation (n.d.) The base package. Available at: https://stat.ethz.ch/R-manual/R-devel/library/base/html/
+ 
+
+Wickham, H. (2016) ggplot2: Elegant graphics for data analysis. New York: Springer.
+
+  
+
